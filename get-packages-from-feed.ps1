@@ -20,19 +20,19 @@ Param(
 
 function Install-Dependencies {
     Param(
-    [parameter(Mandatory=$true, HelpMessage="Version")][ValidateNotNull()] $Package    
-    )
-    Write-Host "Dependencies of $($package.Name) - $($package.Dependencies.Count)"
+    [parameter(Mandatory=$true, HelpMessage="Version")][ValidateNotNull()] $Package
+    )        
+    Write-Host "Dependencies of $($Package.Name) - $($Package.Dependencies.Count)"
 
     $nameversion = $null;
-    foreach($dependency in $package.Dependencies)
+    foreach($dependency in $Package.Dependencies)
     {        
         $nameversion = $dependency.Split(":")[1].Split("/")
         $name = $name = $nameversion[0]
         $version = $nameversion[1].Replace("[", "").Replace("]", "")
 
         #recursive call to Install-Package
-        Write-Host "About to install dependency $name of $($package.Name)"
+        Write-Host "About to install dependency $name of $($Package.Name)"
         Install-Nuget-Package-From-Source -Name $name -Version $version -Source $package.Source
     }
 }
@@ -57,24 +57,24 @@ function Install-Nuget-Package-From-Source
         {
         }
 
-        $package = Find-Package -Name $Name -RequiredVersion $Version -Source "sitecore-myget" -ErrorAction SilentlyContinue
+        $pkg = Find-Package -Name $Name -RequiredVersion $Version -Source "sitecore-myget" -ErrorAction SilentlyContinue
         #if not existent, fallback to nuget.org
-        if($package -eq $null)
+        if($pkg -eq $null)
         {
-            $package = Find-Package -Name $Name -RequiredVersion $Version -Source "nuget2" -ErrorAction SilentlyContinue
+            $pkg = Find-Package -Name $Name -RequiredVersion $Version -Source "nuget2" -ErrorAction SilentlyContinue
         }
 
         #if package found
-        if($package -ne $null)
+        if($pkg -ne $null)
         {
             Write-Host "$($package.Name) found in $($package.Source) - now checking dependencies"
             #install dependencies
-            if($package.Dependencies.Count -gt 0)
+            if($pkg.Dependencies.Count -gt 0)
             {
-                Install-Dependencies -Package $package
+                Install-Dependencies -Package $pkg
             }
             #after installing dependencies, install package
-            Install-Package -Name $Name -RequiredVersion $Version -Source $package.Source -Force -Confirm:$false -ForceBootstrap:$true
+            Install-Package -Name $Name -RequiredVersion $Version -Source $pkg.Source -Force -Confirm:$false -ForceBootstrap:$true
         }
         else
         {
@@ -82,9 +82,11 @@ function Install-Nuget-Package-From-Source
     }
 }
 
-$packages = Find-Package -Source "sitecore-myget" -AllVersions | where {$_.Version -eq "9.0.171219" } 
+$packages = Find-Package -Source "sitecore-myget" -AllVersions 
+$packages901 | where {$_.Version -eq "9.0.171219" } 
+$packages901NoReferences = $packages | where {$_.Name -like "NoReferences"}
 
-foreach($package in $packages)
+foreach($package in $packages901NoReferences)
 {    
     Write-Host "installing $($package.Name)"     
 
