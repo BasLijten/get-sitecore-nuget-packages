@@ -1,8 +1,24 @@
-﻿### Script based on script by Rene van Osnabrugge "https://roadtoalm.com/author/osnabrugge/"
-### original can be found here: https://roadtoalm.com/2017/01/16/programmatically-promote-your-package-quality-with-release-views-in-vsts/
-### I just added some logic to iterate through all my local packages to upload them to a feed and promote them to a specific view.
+﻿<#
+.Synopsis
+Script to fill the Sitecore nuget feed in VSTS. Pushes Sitecore nuget packages to VSTS and promote those packages to a specific view. It's required that he list of all packages is available in the output directory, in form:
+"package<space>version"
+Script based on script by Rene van Osnabrugge "https://roadtoalm.com/author/osnabrugge/"
+original can be found here: https://roadtoalm.com/2017/01/16/programmatically-promote-your-package-quality-with-release-views-in-vsts/
+I just added some logic to iterate through all my local packages to upload them to a feed and promote them to a specific view.
+#>
+Param(
+        [parameter(Mandatory=$true)][string] $Subscription,        
+        [parameter(Mandatory=$true)][string] $Feed,
+        [parameter(Mandatory=$true)][string] $View,
+        [parameter(Mandatory=$false, HelpMessage="Sitecore Version")][string] $sitecoreVersion,
+        [parameter(Mandatory=$false, HelpMessage="file or sitecoreversion")][string] $filename,
+        [parameter(Mandatory=$false, HelpMessage="Alternative nuget packages path")][string] $nugetPackagepath = "C:\Program Files\PackageManagement\NuGet\Packages\"
+    )    
 
-
+<#
+.Synopsis
+Creates VSTS package management url. Only uses subscription as input
+#>
 function Create-VSTSPackagemanagementUrl {
     Param(
         [parameter(Mandatory=$true)][string] $Subscription        
@@ -14,18 +30,17 @@ function Create-VSTSPackagemanagementUrl {
     return $url
 }
 
+<#
+.Synopsis
+Pushes a package to a nuget feed. When using VSTS package management, please note that only the original feed can be used; Pushing to a specific View is not possible. 
+#>
 function Push-ToNuget {
     Param(
     [parameter(Mandatory=$true)][string] $PackagePath,
-    [parameter(Mandatory=$true)][string] $Feed,
-    [parameter(Mandatory=$false)][string] $View = ""
-    )
+    [parameter(Mandatory=$true)][string] $Feed    
+    )    
 
-    if(![String]::IsNullOrEmpty($View)) {
-        $Feed = $Feed + "@" + $View
-    }
-
-    $nugetToCall = "C:\git\get-sitecore-packages\CredentialProviderBundle\nuget.exe"
+    $nugetToCall = "$PSScriptRoot\CredentialProviderBundle\nuget.exe"
      &$nugetToCall push -Source $Feed -ApiKey VSTS "$PackagePath"
 
 }
@@ -94,36 +109,30 @@ function Set-PackageQuality
     $response = Invoke-RestMethod -Uri $releaseViewURL -Headers @{Authorization = $token}   -ContentType "application/json" -Method Patch -Body (ConvertTo-Json $json)
     return $response
 }
- 
 
-
-$feed = "xxxx.Sitecore"
-$view = ""
-$view = "Release-9.0-update-1"
-$subscription = "xxx-xxxxxxx-xxx"
-
+# url to push packages to
 $basepackageurl = Create-VSTSPackagemanagementUrl -Subscription $subscription
 
-#?? needed or just needed to register a source?
-#
-#$fullurl = Create-VSTSPackagemanagementUrl -Subscription $subscription -Feed $feed -View $view
+if($sitecorepackageSource -eq "file") {
+    
+    $nugetpackages = "";
+}
+else {
+    $versionstring = ".$($sitecoreVersion).nupkg"
+    $nugetpackages = Get-ChildItem -Path $nugetPackagepath -Include "*$versionstring" -Recurse
+}
 
-$path = "C:\Program Files\PackageManagement\NuGet\Packages\"
-
-$sc_version = "9.0.180604";
-$versionstring = ".NoReferences.$($sc_version).nupkg"
-
-$nugetpackages = Get-ChildItem -Path $path -Include "*$versionstring" -Recurse
 Write-Host "$($nugetpackages.Count) packages found"
 $pkg = $null
 
 foreach($pkg in $nugetpackages)
 {    
-    $nugetpackage = $pkg.Name.Replace(".$sc_version.nupkg", "")
+    $nugetpackage = $pkg.Name.Replace(".$sitecoreVersion.nupkg", "")
 
     Push-ToNuget -PackagePath $pkg -Feed $feed
-    Set-PackageQuality -feedName $feed -packageId $nugetpackage -packageVersion $sc_version -packageQuality $view
+    Set-PackageQuality -feedName $feed -packageId $nugetpackage -packageVersion $sitecoreVersion -packageQuality $view
 }
+
 
 
 
