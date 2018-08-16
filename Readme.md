@@ -22,7 +22,12 @@ as a bonus, two files we be generated:
 
 ## push to nuget and add to view
 
-to upload all the packages, run the following script:
+First, create a personal access token to be able to use the rest api to update the view: 
+[create personal access token](https://roadtoalm.com/2015/07/22/using-personal-access-tokens-to-access-visual-studio-online/)
+
+> make sure to store the personal accesstoken in $env:PersonalAccessToken
+
+To upload all the packages, run the following script:
 
 ```powershell
 push-to-feed.ps1 -Subscription $subscription -Feed $feed -View $viewname -sitecoreVersion $revision -filename $filename
