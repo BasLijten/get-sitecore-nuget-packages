@@ -10,8 +10,8 @@ Param(
         [parameter(Mandatory=$true)][string] $Subscription,        
         [parameter(Mandatory=$true)][string] $Feed,
         [parameter(Mandatory=$true)][string] $View,
-        [parameter(Mandatory=$false, HelpMessage="Sitecore Version")][string] $sitecoreVersion,
-        [parameter(Mandatory=$false, HelpMessage="file or sitecoreversion")][string] $filename,
+        [parameter(Mandatory=$true, HelpMessage="Sitecore Version")][string] $sitecoreVersion,
+        [parameter(Mandatory=$false, HelpMessage="file or sitecoreversion")][string] $filename = "C:\git\get-sitecore-packages\output\9.0.171219-allpackages-with-dependencies.txt",
         [parameter(Mandatory=$false, HelpMessage="Alternative nuget packages path")][string] $nugetPackagepath = "C:\Program Files\PackageManagement\NuGet\Packages\"
     )    
 
@@ -43,6 +43,14 @@ function Push-ToNuget {
     $nugetToCall = "$PSScriptRoot\CredentialProviderBundle\nuget.exe"
      &$nugetToCall push -Source $Feed -ApiKey VSTS "$PackagePath"
 
+}
+
+function Enable-Nuget-Source {
+    Param (
+        [parameter(Mandatory=$true)][string]$Source
+    )
+    $nugetToCall = "$PSScriptRoot\CredentialProviderBundle\nuget.exe"
+     &$nugetToCall Sources Enable -Name $Source
 }
 
 <#
@@ -110,28 +118,71 @@ function Set-PackageQuality
     return $response
 }
 
+function Publish-Package {
+    Param(
+    [parameter(Mandatory=$true)][string] $path,
+    [parameter(Mandatory=$true)][string] $feed,
+    [parameter(Mandatory=$true)][string] $packageid,
+    [parameter(Mandatory=$true)][string] $sitecoreversion,
+    [parameter(Mandatory=$true)][string] $view    
+    )
+
+    #Push-ToNuget -PackagePath $path -Feed $feed
+    Set-PackageQuality -feedName $feed -packageId $packageid -packageVersion $sitecoreVersion -packageQuality $view
+}
+
 # url to push packages to
 $basepackageurl = Create-VSTSPackagemanagementUrl -Subscription $subscription
+$nugetpackages = @()
 
-if($sitecorepackageSource -eq "file") {
-    
-    $nugetpackages = "";
+#enable source
+Enable-Nuget-Source -Source $Feed
+
+if(![String]::IsNullOrEmpty($filename)) {
+    if([System.IO.File]::Exists($filename))
+    {
+        $content = Get-Content $filename
+        [string[]]$list = [string[]]
+        Write-Host "$($content.Count) packages found"
+        foreach($line in $content)
+        {            
+            if(![String]::IsNullOrEmpty($line))
+            {
+                $pkg = $line.Split(" ")
+                $name = $pkg[0]
+                $version = $pkg[1]
+
+                $pkgpath = "$nugetPackagepath$($line.Replace(" ", "."))\$($line.Replace(" ", ".")).nupkg"            
+
+                "$name $version $pkgpath"
+            
+                Publish-Package -path $pkgpath -feed $feed -packageid $name -sitecoreversion $version -view $view
+                
+                #Push-ToNuget -PackagePath $pkgpath -Feed $feed
+                #Set-PackageQuality -feedName $feed -packageId $name -packageVersion $version -packageQuality $view                
+            }           
+            
+        }                        
+    }        
 }
 else {
     $versionstring = ".$($sitecoreVersion).nupkg"
     $nugetpackages = Get-ChildItem -Path $nugetPackagepath -Include "*$versionstring" -Recurse
+
+    Write-Host "$($nugetpackages.Count) packages found"
+    $pkg = $null
+
+    foreach($pkg in $nugetpackages)
+    {    
+        $nugetpackage = $pkg.Name.Replace(".$sitecoreVersion.nupkg", "")
+
+        Publish-Package -path $pkg.FullName -feed $feed -packageid $nugetpackage -sitecoreversion $sitecoreVersion -view $view
+        #Push-ToNuget -PackagePath $pkg -Feed $feed
+        #Set-PackageQuality -feedName $feed -packageId $nugetpackage -packageVersion $sitecoreVersion -packageQuality $view
+    }
 }
 
-Write-Host "$($nugetpackages.Count) packages found"
-$pkg = $null
 
-foreach($pkg in $nugetpackages)
-{    
-    $nugetpackage = $pkg.Name.Replace(".$sitecoreVersion.nupkg", "")
-
-    Push-ToNuget -PackagePath $pkg -Feed $feed
-    Set-PackageQuality -feedName $feed -packageId $nugetpackage -packageVersion $sitecoreVersion -packageQuality $view
-}
 
 
 

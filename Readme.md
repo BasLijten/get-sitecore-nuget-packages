@@ -1,8 +1,10 @@
 # How to use
+
 This readme describes how to use the scripts to fill the VSTS feeds for Sitecore
 
 ## gather sitecore nuget packages and its dependencies
-First, run the snippet below. The sitecoreversion is the revision of Sitecore: 
+
+First, run the snippet below. The sitecore version is the revision of Sitecore: 
 
 sitecore version | revision
 :--- | :---
